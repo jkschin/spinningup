@@ -199,7 +199,7 @@ def ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
 
     # Set up logger and save configuration
     logger = EpochLogger(**logger_kwargs)
-    logger.save_config(locals())
+    # logger.save_config(locals())
 
     # Random seed
     seed += 10000 * proc_id()
@@ -208,14 +208,18 @@ def ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
 
     # Instantiate environment
     env = env_fn()
+    print("SUCCESS: Env Instantiated")
     obs_dim = env.observation_space.shape
     act_dim = env.action_space.shape
 
     # Create actor-critic module
-    ac = actor_critic(env.observation_space, env.action_space, **ac_kwargs)
+    # ac = actor_critic(env.observation_space, env.action_space, **ac_kwargs)
+    ac = actor_critic(**ac_kwargs)
+    print("SUCCESS: Actor Critic Created")
 
     # Sync params across processes
     sync_params(ac)
+    print("SUCCESS: MPI Sync Params")
 
     # Count variables
     var_counts = tuple(core.count_vars(module) for module in [ac.pi, ac.v])
@@ -300,8 +304,10 @@ def ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
 
     # Main loop: collect experience in env and update/log each epoch
     for epoch in range(epochs):
+        print(epoch)
         for t in range(local_steps_per_epoch):
             a, v, logp = ac.step(torch.as_tensor(o, dtype=torch.float32))
+            # a, v, logp = ac.step(o, None)
 
             next_o, r, d, trunc, info = env.step(a)
             ep_ret += r
@@ -319,12 +325,14 @@ def ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
             epoch_ended = t == local_steps_per_epoch-1
 
             if terminal or epoch_ended:
+                print("Terminated. Ep Ret: ", ep_ret)
                 if epoch_ended and not(terminal):
                     print('Warning: trajectory cut off by epoch at %d steps.' %
                           ep_len, flush=True)
                 # if trajectory didn't reach terminal state, bootstrap value target
                 if timeout or epoch_ended:
                     _, v, _ = ac.step(torch.as_tensor(o, dtype=torch.float32))
+                    # _, v, _ = ac.step(o, None)
                 else:
                     v = 0
                 buf.finish_path(v)
